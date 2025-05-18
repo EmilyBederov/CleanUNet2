@@ -1,25 +1,27 @@
 {   
     
     "network_config": {
+
         "cleanunet_input_channels": 1,
         "cleanunet_output_channels": 1,
-        "cleanunet_channels_H": 64,
-        "cleanunet_max_H": 768,
-        "cleanunet_encoder_n_layers": 8,
+        "cleanunet_channels_H": 32,            
+        "cleanunet_max_H": 256,               
+        "cleanunet_encoder_n_layers": 5,       
         "cleanunet_kernel_size": 4,
         "cleanunet_stride": 2,
-        "cleanunet_tsfm_n_layers": 5, 
-        "cleanunet_tsfm_n_head": 8,
-        "cleanunet_tsfm_d_model": 512, 
-        "cleanunet_tsfm_d_inner": 2048,
+        "cleanunet_tsfm_n_layers": 2,          
+        "cleanunet_tsfm_n_head": 4,            
+        "cleanunet_tsfm_d_model": 128,         
+        "cleanunet_tsfm_d_inner": 512,         
         "cleanspecnet_input_channels": 513, 
-        "cleanspecnet_num_conv_layers":5, 
-        "cleanspecnet_kernel_size":4, 
-        "cleanspecnet_stride":1,
-        "cleanspecnet_num_attention_layers":5, 
-        "cleanspecnet_num_heads":8, 
-        "cleanspecnet_hidden_dim":512, 
-        "cleanspecnet_dropout":0.1  
+        "cleanspecnet_num_conv_layers": 3,     
+        "cleanspecnet_kernel_size": 3,         
+        "cleanspecnet_stride": 1,
+        "cleanspecnet_num_attention_layers": 2, 
+        "cleanspecnet_num_heads": 4,           
+        "cleanspecnet_hidden_dim": 128,        
+        "cleanspecnet_dropout":0.1
+        
     },
     "train_config": {
         "exp_path": "cleanunet2",
@@ -29,11 +31,11 @@
         "log":{
             "directory": "./logs_training",
             "ckpt_iter": "max",
-            "iters_per_ckpt": 10000,
-            "iters_per_valid": 1000
+            "iters_per_ckpt": 1000,
+            "iters_per_valid": 100
         },
         "optimization":{
-            "n_iters": 5e8,
+            "n_iters": 50,
             "learning_rate": 2e-4,
             "weight_decay": 1e-5,
             "max_norm": 5,            

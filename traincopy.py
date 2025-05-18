@@ -137,17 +137,23 @@ def train(num_gpus, rank, group_name, exp_path, checkpoint_path, checkpoint_clea
     if num_gpus > 1:
         init_distributed(rank, num_gpus, group_name, **dist_config)   
 
+    import pandas as pd
+    # Limit the dataset to only 5 samples
+    df = pd.read_csv(trainset_config['csv_path'])
+    temp_csv_path = "only_5_samples.csv"
+    df.head(5).to_csv(temp_csv_path, index=False)
+
     trainloader = load_cleanunet2_dataset(
-        csv_path=trainset_config['csv_path'],
-        sample_rate=config['sample_rate'],
-        n_fft=1024,
-        hop_length=256,
-        win_length=1024,
-        power=1.0,
-        crop_length_sec=0.0,
-        batch_size=config['batch_size'],
-        num_workers=config['num_workers']
-    )
+    csv_path=temp_csv_path,
+    sample_rate=config['sample_rate'],
+    n_fft=1024,
+    hop_length=256,
+    win_length=1024,
+    power=1.0,
+    crop_length_sec=0.0,
+    batch_size=1,  # safer to use batch size 1 to avoid batching conflicts
+    num_workers=0
+)
     print('Data loaded')
 
     # initialize the model
@@ -400,81 +406,47 @@ def train(num_gpus, rank, group_name, exp_path, checkpoint_path, checkpoint_clea
     #     print(f"Final model weights saved for inference: {final_model_path}")
 
     # return 0
-    print("Starting full-data training...")
+   
+    print("Starting 5-sample training...")
 
-    for epoch in tqdm(range(config["epochs"]), desc="Epoch", position=0):
-        model.train()
-        
-        progress_bar = tqdm(enumerate(trainloader), total=len(trainloader), desc=f"Epoch {epoch+1}", position=1, leave=False)
-        for step, (clean_audio, clean_spec, noisy_audio, noisy_spec) in progress_bar:
-            noisy_audio = noisy_audio.to(device)
-            noisy_spec = noisy_spec.to(device)
-            clean_audio = clean_audio.to(device)
-            clean_spec = clean_spec.to(device)
+    model.train()
+    for step, (clean_audio, clean_spec, noisy_audio, noisy_spec) in enumerate(trainloader):
+        if step >= 5:
+            break  # only process 5 samples
 
-            try:
-                check_for_nan_and_inf(noisy_audio, "noisy_audio")
-                check_for_nan_and_inf(noisy_spec, "noisy_spec")
-                check_for_nan_and_inf(clean_audio, "clean_audio")
-                check_for_nan_and_inf(clean_spec, "clean_spec")
-            except ValueError as e:
-                tqdm.write(str(e))
-                continue
+        noisy_audio = noisy_audio.to(device)
+        noisy_spec = noisy_spec.to(device)
+        clean_audio = clean_audio.to(device)
+        clean_spec = clean_spec.to(device)
 
-            optimizer.zero_grad()
-            denoised_audio, denoised_spec = model(noisy_audio, noisy_spec)
-            loss = loss_fn(clean_audio, denoised_audio)
+        try:
+            check_for_nan_and_inf(noisy_audio, "noisy_audio")
+            check_for_nan_and_inf(noisy_spec, "noisy_spec")
+            check_for_nan_and_inf(clean_audio, "clean_audio")
+            check_for_nan_and_inf(clean_spec, "clean_spec")
+        except ValueError as e:
+            print(e)
+            continue
 
-            reduced_loss = (
-                reduce_tensor(loss.data, num_gpus).item()
-                if num_gpus > 1 else loss.item()
-            )
+        optimizer.zero_grad()
+        denoised_audio, denoised_spec = model(noisy_audio, noisy_spec)
+        loss = loss_fn(clean_audio, denoised_audio)
 
-            loss.backward()
+        if torch.isnan(loss).any():
+            print("Loss contains NaN, skipping step")
+            continue
 
-            if torch.isnan(loss).any():
-                tqdm.write("Loss contains NaN, skipping step")
-                continue
+        loss.backward()
+        optimizer.step()
 
-            grad_norm = nn.utils.clip_grad_norm_(model.parameters(), max_norm)
-            scheduler.step()
-            optimizer.step()
+        print(f"[Step {step}] Loss: {loss.item():.6f}")
 
-            progress_bar.set_postfix({
-                "step": step,
-                "global_step": global_step,
-                "loss": f"{reduced_loss:.4f}"
-            })
-
-            # Logging
-            if global_step > 0 and global_step % 10 == 0:
-                logger.add_scalar("Train/Train-Loss", reduced_loss, global_step)
-                logger.add_scalar("Train/Gradient-Norm", grad_norm, global_step)
-                logger.add_scalar("Train/learning-rate", optimizer.param_groups[0]["lr"], global_step)
-
-            # Save checkpoint
-            if global_step > 0 and global_step % iters_per_ckpt == 0 and rank == 0:
-                checkpoint_name = f"{global_step}.pkl"
-                checkpoint_path = os.path.join(ckpt_dir, checkpoint_name)
-                save_checkpoint(model, optimizer, learning_rate, global_step, checkpoint_path)
-                tqdm.write(f"[✓] Checkpoint saved at: {checkpoint_name}")
-
-            global_step += 1
-
-        # Validation after each epoch
-        if rank == 0:
-            print(f"Epoch {epoch + 1} finished. Running validation...")
-            model.eval()
-            validate(model, testloader, loss_fn, global_step, trainset_config, logger, device)
-            model.train()
-
-    # Save final model
+    # Save model for inference
     if rank == 0:
-        final_model_path = os.path.join(ckpt_dir, 'final_model.pth')
-        torch.save(model.state_dict(), final_model_path)
-        print(f"[✓] Final model weights saved for inference: {final_model_path}")
-
-    return 0
+        os.makedirs("output", exist_ok=True)
+        torch.save(model.state_dict(), "output/cleanunet2_5sample.pth")
+        print("[✓] Final model weights saved at: output/cleanunet2_5sample.pth")
+        return 0
 
 
 if __name__ == '__main__':
@@ -554,6 +526,6 @@ if __name__ == '__main__':
     loss_config=train_config.get("loss_config", None),
     device=device
 )
-    print("noisy_spec shape:", noisy_spec.shape)
+
 
     

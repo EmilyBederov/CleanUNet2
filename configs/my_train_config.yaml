@@ -1,0 +1,34 @@
+network_config:
+  cleanunet_input_channels: 1
+  cleanunet_output_channels: 1
+  cleanunet_channels_H: 32
+  cleanunet_max_H: 256
+  cleanunet_encoder_n_layers: 5
+  cleanunet_kernel_size: 4
+  cleanunet_stride: 2
+  cleanunet_tsfm_n_layers: 2
+  cleanunet_tsfm_n_head: 4
+  cleanunet_tsfm_d_model: 128
+  cleanunet_tsfm_d_inner: 512
+  cleanspecnet_input_channels: 513
+  cleanspecnet_num_conv_layers: 3
+  cleanspecnet_kernel_size: 3
+  cleanspecnet_stride: 1
+  cleanspecnet_num_attention_layers: 2
+  cleanspecnet_num_heads: 4
+  cleanspecnet_hidden_dim: 128
+  cleanspecnet_dropout: 0.1
+
+trainset:
+  csv_path: "data/train_pairs.csv"
+
+valset:
+  csv_path: "data/val_pairs.csv"  
+
+augmentations: null
+sample_rate: 16000
+batch_size: 60
+num_workers: 4
+epochs: 1
+learning_rate: 0.0001
+save_path: "outputs"
